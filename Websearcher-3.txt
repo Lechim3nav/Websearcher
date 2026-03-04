@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bedrijfschecker</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background:#f6f7fb; }
+    .wrap { max-width: 980px; margin: 40px auto; padding: 0 16px; }
+    .card { background: white; border-radius: 16px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    form { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+    input[type="text"] { padding: 12px 14px; border: 1px solid #d6d9e0; border-radius: 12px; font-size: 16px; }
+    button { padding: 12px 14px; border: 0; border-radius: 12px; font-weight: 600; cursor: pointer; background: #2f6fed; color: white; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+
+    .meta { margin-top: 10px; color: #5b6472; font-size: 13px; }
+    .status { margin-top: 14px; color: #5b6472; font-size: 14px; }
+    .error { color: #b42318; }
+
+    .result { margin-top: 16px; display: grid; grid-template-columns: 120px 1fr; gap: 14px; align-items: start; }
+    .logo {
+      width: 120px; height: 120px; border-radius: 14px; border: 1px solid #e6e8ee;
+      display: grid; place-items: center; background: #fafbff; overflow: hidden;
+    }
+    .logo img { width: 100%; height: 100%; object-fit: contain; background: white; }
+    .kicker { color: #5b6472; font-size: 13px; margin: 0 0 6px; }
+    .title { font-size: 18px; margin: 0 0 8px; }
+    .summary { line-height: 1.5; margin: 0; color: #1b2330; }
+
+    .links { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 10px; }
+    a.badge {
+      display: inline-flex; gap: 8px; align-items: center;
+      padding: 8px 10px; border: 1px solid #e6e8ee; border-radius: 999px;
+      color: #1b2330; text-decoration: none; background: #fff;
+      font-size: 13px;
+    }
+
+    .sectionTitle { margin-top: 18px; margin-bottom: 10px; font-size: 15px; color:#1b2330; }
+    .hint { color:#5b6472; font-size: 12px; margin: 6px 0 0; }
+
+    .competitors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .compCard { border: 1px solid #e6e8ee; border-radius: 14px; background: #fff; overflow: hidden; display: grid; grid-template-rows: 84px auto; }
+    .compTop { display: grid; grid-template-columns: 84px 1fr; gap: 10px; padding: 10px; align-items: center; background: #fafbff; }
+    .compLogo { width: 64px; height: 64px; border-radius: 12px; border: 1px solid #e6e8ee; display: grid; place-items: center; background: #fff; overflow: hidden; }
+    .compLogo img { width: 100%; height: 100%; object-fit: contain; }
+    .compName { font-weight: 700; font-size: 14px; margin: 0; }
+    .compMeta { font-size: 12px; color: #5b6472; margin: 2px 0 0; }
+    .compBody { padding: 10px; }
+    .compDesc { font-size: 13px; color:#1b2330; line-height: 1.45; margin: 0; }
+    .compLinks { margin-top: 8px; display:flex; gap: 8px; flex-wrap: wrap; }
+    .compLinks a { font-size: 12px; text-decoration: none; color: #2f6fed; }
+
+    .small { font-size: 12px; color: #5b6472; margin-top: 10px; }
+
+    @media (max-width: 900px) {
+      .competitors { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      form { grid-template-columns: 1fr; }
+      .result { grid-template-columns: 1fr; }
+      .logo { width: 100%; height: 140px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Zoek bedrijfsactiviteiten + logo + 3 concurrenten</h1>
+
+      <form id="companyForm">
+        <input id="companyInput" type="text" placeholder="Typ een bedrijfsnaam (bv. 'Philips', 'ASML', 'IKEA')..." required />
+        <button id="submitBtn" type="submit">Zoeken</button>
+      </form>
+
+      <div class="meta">
+        Bronnen: Wikipedia (samenvatting) + Wikidata (website/logo/industry). Concurrenten = bedrijven in dezelfde sector (proxy) met fallback op product/dienst en bredere sector.
+      </div>
+
+      <div id="status" class="status"></div>
+
+      <div id="result" class="result" style="display:none;">
+        <div class="logo" id="logoBox">
+          <span>Geen logo</span>
+        </div>
+
+        <div>
+          <p class="kicker" id="kicker"></p>
+          <h2 class="title" id="title"></h2>
+          <p class="summary" id="summary"></p>
+
+          <div class="links" id="links"></div>
+
+          <div id="competitorBlock" style="display:none;">
+            <div class="sectionTitle">3 belangrijkste concurrenten</div>
+            <div id="competitors" class="competitors"></div>
+            <p class="hint">*Concurreren is benaderd met Wikidata (industry/product) + fallback naar bredere sector/land.</p>
+          </div>
+
+          <div class="small">
+            Tip: als je een heel nieuw/niche bedrijf zoekt, kan het zijn dat er (nog) geen Wikipedia/Wikidata-item is.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+
+    const form = $("#companyForm");
+    const input = $("#companyInput");
+    const statusEl = $("#status");
+    const resultEl = $("#result");
+    const submitBtn = $("#submitBtn");
+
+    const logoBox = $("#logoBox");
+    const kickerEl = $("#kicker");
+    const titleEl = $("#title");
+    const summaryEl = $("#summary");
+    const linksEl = $("#links");
+
+    const competitorBlock = $("#competitorBlock");
+    const competitorsEl = $("#competitors");
+
+    function setStatus(msg, isError=false) {
+      statusEl.textContent = msg || "";
+      statusEl.className = "status" + (isError ? " error" : "");
+    }
+
+    function resetUI() {
+      resultEl.style.display = "none";
+      logoBox.innerHTML = "<span>Geen logo</span>";
+      kickerEl.textContent = "";
+      titleEl.textContent = "";
+      summaryEl.textContent = "";
+      linksEl.innerHTML = "";
+      competitorBlock.style.display = "none";
+      competitorsEl.innerHTML = "";
+    }
+
+    function safeBadge(href, label) {
+      const a = document.createElement("a");
+      a.className = "badge";
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = label;
+      return a;
+    }
+
+    function qidFromItemUrl(url) {
+      const m = String(url || "").match(/\/(Q\d+)(?:$|[?#])/);
+      return m ? m[1] : null;
+    }
+
+    function domainFromUrl(url) {
+      try { return new URL(url).hostname; } catch { return null; }
+    }
+
+    function commonsFileUrl(fileTitle) {
+      if (!fileTitle) return null;
+      const cleaned = fileTitle.replace(/^File:/i, "");
+      return "https://commons.wikimedia.org/wiki/Special:FilePath/" + encodeURIComponent(cleaned);
+    }
+
+    function setLogoFromUrl(containerEl, imgUrl) {
+      containerEl.innerHTML = "";
+      const img = document.createElement("img");
+      img.alt = "Logo";
+      img.loading = "lazy";
+      img.referrerPolicy = "no-referrer";
+      img.src = imgUrl;
+      img.onerror = () => { containerEl.innerHTML = "<span>Geen logo</span>"; };
+      containerEl.appendChild(img);
+    }
+
+    async function wikiSearch(companyName) {
+      async function searchOn(lang) {
+        const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(companyName)}&format=json&origin=*`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Wikipedia search mislukt");
+        const data = await res.json();
+        return { lang, results: data?.query?.search || [] };
+      }
+
+      const nl = await searchOn("nl");
+      if (nl.results.length) return { lang: "nl", title: nl.results[0].title };
+
+      const en = await searchOn("en");
+      if (en.results.length) return { lang: "en", title: en.results[0].title };
+
+      return null;
+    }
+
+    async function wikiSummary(lang, title) {
+      const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Wikipedia summary mislukt");
+      const data = await res.json();
+      return {
+        title: data?.title || title,
+        extract: data?.extract || "",
+        pageUrl: data?.content_urls?.desktop?.page || null
+      };
+    }
+
+    async function wikidataEntitySearch(companyName) {
+      const query = `
+SELECT ?item ?itemLabel ?website ?logo WHERE {
+  SERVICE wikibase:mwapi {
+    bd:serviceParam wikibase:endpoint "www.wikidata.org";
+    bd:serviceParam wikibase:api "EntitySearch";
+    bd:serviceParam mwapi:search "${companyName.replace(/"/g, '\\"')}";
+    bd:serviceParam mwapi:language "nl";
+    ?item wikibase:apiOutputItem mwapi:item.
+  }
+  OPTIONAL { ?item wdt:P856 ?website. }
+  OPTIONAL { ?item wdt:P154 ?logo. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
+}
+LIMIT 5`.trim();
+
+      const url = "https://query.wikidata.org/sparql?format=json&query=" + encodeURIComponent(query);
+      const res = await fetch(url, { headers: { "Accept": "application/sparql-results+json" } });
+      if (!res.ok) throw new Error("Wikidata entity search mislukt");
+      const data = await res.json();
+      const rows = data?.results?.bindings || [];
+      if (!rows.length) return null;
+
+      const pick = rows.find(r => r.website?.value || r.logo?.value) || rows[0];
+      return {
+        label: pick.itemLabel?.value || null,
+        website: pick.website?.value || null,
+        logoFile: pick.logo?.value || null,
+        itemUrl: pick.item?.value || null,
+        qid: qidFromItemUrl(pick.item?.value)
+      };
+    }
+
+    async function wikidataDetails(qid) {
+      const query = `
+SELECT ?item ?itemLabel ?website ?logo ?industry ?industryLabel ?product ?productLabel ?country ?countryLabel WHERE {
+  BIND(wd:${qid} AS ?item)
+  OPTIONAL { ?item wdt:P856 ?website. }
+  OPTIONAL { ?item wdt:P154 ?logo. }
+  OPTIONAL { ?item wdt:P452 ?industry. }
+  OPTIONAL { ?item wdt:P1056 ?product. }
+  OPTIONAL { ?item wdt:P17 ?country. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
+}`.trim();
+
+      const url = "https://query.wikidata.org/sparql?format=json&query=" + encodeURIComponent(query);
+      const res = await fetch(url, { headers: { "Accept": "application/sparql-results+json" } });
+      if (!res.ok) throw new Error("Wikidata details mislukt");
+      const data = await res.json();
+      const rows = data?.results?.bindings || [];
+      if (!rows.length) return null;
+
+      const industries = [];
+      const products = [];
+      let country = null;
+
+      for (const r of rows) {
+        if (r.industry?.value) industries.push({
+          url: r.industry.value,
+          qid: qidFromItemUrl(r.industry.value),
+          label: r.industryLabel?.value || null
+        });
+        if (r.product?.value) products.push({
+          url: r.product.value,
+          qid: qidFromItemUrl(r.product.value),
+          label: r.productLabel?.value || null
+        });
+        if (!country && r.country?.value) {
+          country = {
+            url: r.country.value,
+            qid: qidFromItemUrl(r.country.value),
+            label: r.countryLabel?.value || null
+          };
+        }
+      }
+
+      const dedupe = (arr) => {
+        const m = new Map();
+        for (const x of arr) if (x?.qid && !m.has(x.qid)) m.set(x.qid, x);
+        return [...m.values()];
+      };
+
+      const first = rows[0];
+      return {
+        qid,
+        label: first.itemLabel?.value || null,
+        website: first.website?.value || null,
+        logoFile: first.logo?.value || null,
+        itemUrl: first.item?.value ? first.item.value : `https://www.wikidata.org/entity/${qid}`,
+        industries: dedupe(industries),
+        products: dedupe(products),
+        country
+      };
+    }
+
+    async function bestLogoUrlFromWikidata(details) {
+      if (details?.logoFile) {
+        const u = commonsFileUrl(details.logoFile);
+        if (u) return u;
+      }
+      if (details?.website) {
+        const dom = domainFromUrl(details.website);
+        if (dom) return `https://logo.clearbit.com/${encodeURIComponent(dom)}`;
+      }
+      return null;
+    }
+
+    function createCompetitorCard({ name, desc, wikiUrl, wdUrl, logoUrl, meta }) {
+      const card = document.createElement("div");
+      card.className = "compCard";
+
+      const top = document.createElement("div");
+      top.className = "compTop";
+
+      const logo = document.createElement("div");
+      logo.className = "compLogo";
+      logo.innerHTML = "<span>—</span>";
+      if (logoUrl) setLogoFromUrl(logo, logoUrl);
+
+      const head = document.createElement("div");
+      const h = document.createElement("p");
+      h.className = "compName";
+      h.textContent = name;
+
+      const m = document.createElement("p");
+      m.className = "compMeta";
+      m.textContent = meta || "";
+
+      head.appendChild(h);
+      if (meta) head.appendChild(m);
+
+      top.appendChild(logo);
+      top.appendChild(head);
+
+      const body = document.createElement("div");
+      body.className = "compBody";
+
+      const p = document.createElement("p");
+      p.className = "compDesc";
+      p.textContent = desc || "Geen beschrijving gevonden.";
+
+      const links = document.createElement("div");
+      links.className = "compLinks";
+      if (wikiUrl) {
+        const a = document.createElement("a");
+        a.href = wikiUrl; a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.textContent = "Wikipedia";
+        links.appendChild(a);
+      }
+      if (wdUrl) {
+        const a = document.createElement("a");
+        a.href = wdUrl; a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.textContent = "Wikidata";
+        links.appendChild(a);
+      }
+
+      body.appendChild(p);
+      if (links.childNodes.length) body.appendChild(links);
+
+      card.appendChild(top);
+      card.appendChild(body);
+      return card;
+    }
+
+    async function wikidataCompetitorsMultiStep(companyQid, industryQids, productQids, countryQid) {
+      const target = 3;
+      const picked = [];
+      const seen = new Set([companyQid]);
+
+      async function runQuery(stepQuery) {
+        const url = "https://query.wikidata.org/sparql?format=json&query=" + encodeURIComponent(stepQuery);
+        const res = await fetch(url, { headers: { "Accept": "application/sparql-results+json" } });
+        if (!res.ok) throw new Error("Wikidata query mislukt");
+        const data = await res.json();
+        return data?.results?.bindings || [];
+      }
+
+      function addRows(rows) {
+        for (const r of rows) {
+          const itemUrl = r.comp?.value;
+          const qid = qidFromItemUrl(itemUrl);
+          if (!qid || seen.has(qid)) continue;
+          seen.add(qid);
+          picked.push({
+            qid,
+            itemUrl,
+            label: r.compLabel?.value || qid,
+            sitelinks: Number(r.sitelinks?.value || 0)
+          });
+          if (picked.length >= target) break;
+        }
+      }
+
+      const vals = (qids, max=10) => (qids || []).filter(Boolean).slice(0, max).map(q => `wd:${q}`).join(" ");
+
+      // STEP 1: zelfde industry (P452)
+      if (picked.length < target && industryQids?.length) {
+        const vIndustry = vals(industryQids, 12);
+        const q1 = `
+SELECT ?comp ?compLabel ?sitelinks WHERE {
+  VALUES ?industry { ${vIndustry} }
+  ?comp wdt:P452 ?industry .
+  FILTER(?comp != wd:${companyQid})
+  OPTIONAL { ?comp wikibase:sitelinks ?sitelinks. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
+}
+ORDER BY DESC(COALESCE(?sitelinks, 0))
+LIMIT 120`.trim();
+        addRows(await runQuery(q1));
+      }
+
+      // STEP 2: zelfde product/dienst (P1056)
+      if (picked.length < target && productQids?.length) {
+        const vProd = vals(productQids, 10);
+        const q2 = `
+SELECT ?comp ?compLabel ?sitelinks WHERE {
+  VALUES ?prod { ${vProd} }
+  ?comp wdt:P1056 ?prod .
+  FILTER(?comp != wd:${companyQid})
+  OPTIONAL { ?comp wikibase:sitelinks ?sitelinks. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
+}
+ORDER BY DESC(COALESCE(?sitelinks, 0))
+LIMIT 120`.trim();
+        addRows(await runQuery(q2));
+      }
+
+      // STEP 3: bredere sector via subclass chain (P279*)
+      if (picked.length < target && industryQids?.length) {
+        const vIndustry = vals(industryQids, 8);
+        const q3 = `
+SELECT ?comp ?compLabel ?sitelinks WHERE {
+  VALUES ?baseIndustry { ${vIndustry} }
+  ?comp wdt:P452 ?ind .
+  {
+    ?ind wdt:P279* ?baseIndustry .
+  } UNION {
+    ?baseIndustry wdt:P279* ?ind .
+  }
+  FILTER(?comp != wd:${companyQid})
+  OPTIONAL { ?comp wikibase:sitelinks ?sitelinks. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
+}
+ORDER BY DESC(COALESCE(?sitelinks, 0))
+LIMIT 200`.trim();
+        addRows(await runQuery(q3));
+      }
+
+      // STEP 4: last resort: zelfde land + (industry of product)
+      if (picked.length < target && countryQid) {
+        const vIndustry = industryQids?.length ? vals(industryQids, 6) : "";
+        const vProd = productQids?.length ? vals(productQids, 6) : "";
+
+        const constraint = (vIndustry || vProd) ? `
+          ${vIndustry ? `{ VALUES ?industry { ${vIndustry} } ?comp wdt:P452 ?industry . }` : ""}
+          ${(vIndustry && vProd) ? "UNION" : ""}
+          ${vProd ? `{ VALUES ?prod { ${vProd} } ?comp wdt:P1056 ?prod . }` : ""}
+        ` : "";
+
+        const q4 = `
+SELECT ?comp ?compLabel ?sitelinks WHERE {
+  ?comp wdt:P17 wd:${countryQid} .
+  ${constraint}
+  FILTER(?comp != wd:${companyQid})
+  OPTIONAL { ?comp wikibase:sitelinks ?sitelinks. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
+}
+ORDER BY DESC(COALESCE(?sitelinks, 0))
+LIMIT 300`.trim();
+
+        addRows(await runQuery(q4));
+      }
+
+      return picked.slice(0, target);
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const companyName = input.value.trim();
+      if (!companyName) return;
+
+      resetUI();
+      submitBtn.disabled = true;
+      setStatus("Bezig met zoeken…");
+
+      try {
+        const [wdEntity, ws] = await Promise.all([
+          wikidataEntitySearch(companyName).catch(() => null),
+          wikiSearch(companyName).catch(() => null)
+        ]);
+
+        let summaryData = null;
+        if (ws?.lang && ws?.title) {
+          summaryData = await wikiSummary(ws.lang, ws.title).catch(() => null);
+        }
+
+        let wdDetails = null;
+        if (wdEntity?.qid) {
+          wdDetails = await wikidataDetails(wdEntity.qid).catch(() => null);
+        }
+
+        const mainLogoUrl = await bestLogoUrlFromWikidata(wdDetails || wdEntity);
+        if (mainLogoUrl) setLogoFromUrl(logoBox, mainLogoUrl);
+
+        const displayTitle = summaryData?.title || wdDetails?.label || wdEntity?.label || companyName;
+        titleEl.textContent = displayTitle;
+
+        kickerEl.textContent =
+          (summaryData ? `Wikipedia (${ws.lang.toUpperCase()})` : "Geen Wikipedia-samenvatting gevonden")
+          + (wdEntity?.itemUrl ? " • Wikidata" : "");
+
+        summaryEl.textContent =
+          summaryData?.extract
+          || "Geen samenvatting gevonden. Probeer een andere schrijfwijze of een meer specifieke naam (bijv. met land/branche).";
+
+        linksEl.innerHTML = "";
+        if (summaryData?.pageUrl) linksEl.appendChild(safeBadge(summaryData.pageUrl, "Wikipedia-pagina"));
+        if (wdEntity?.itemUrl) linksEl.appendChild(safeBadge(wdEntity.itemUrl, "Wikidata-item"));
+        if (wdDetails?.website || wdEntity?.website) linksEl.appendChild(safeBadge((wdDetails?.website || wdEntity?.website), "Officiële website"));
+
+        resultEl.style.display = "grid";
+        setStatus("");
+
+        // Concurrenten
+        competitorsEl.innerHTML = "";
+        competitorBlock.style.display = "none";
+
+        const industryQids = (wdDetails?.industries || []).map(x => x.qid).filter(Boolean);
+        const productQids  = (wdDetails?.products  || []).map(x => x.qid).filter(Boolean);
+        const countryQid   = wdDetails?.country?.qid || null;
+
+        if (wdDetails?.qid && (industryQids.length || productQids.length || countryQid)) {
+          setStatus("Concurrenten ophalen…");
+
+          const competitorItems = await wikidataCompetitorsMultiStep(
+            wdDetails.qid,
+            industryQids,
+            productQids,
+            countryQid
+          ).catch(() => []);
+
+          if (competitorItems.length) {
+            competitorBlock.style.display = "block";
+
+            const cards = await Promise.all(competitorItems.map(async (c) => {
+              const [cd, wcs] = await Promise.all([
+                wikidataDetails(c.qid).catch(() => null),
+                wikiSearch(c.label).catch(() => null)
+              ]);
+
+              let wcSummary = null;
+              if (wcs?.lang && wcs?.title) {
+                wcSummary = await wikiSummary(wcs.lang, wcs.title).catch(() => null);
+              }
+
+              const logoUrl = await bestLogoUrlFromWikidata(cd);
+              const desc = (wcSummary?.extract || "").trim();
+              const shortDesc = desc.length > 240 ? (desc.slice(0, 240).trim() + "…") : desc;
+
+              const industryLabel = (cd?.industries?.[0]?.label) ? `Sector: ${cd.industries[0].label}` : "";
+
+              return createCompetitorCard({
+                name: cd?.label || c.label,
+                desc: shortDesc || "Geen beschrijving gevonden via Wikipedia.",
+                wikiUrl: wcSummary?.pageUrl || null,
+                wdUrl: cd?.itemUrl || c.itemUrl,
+                logoUrl,
+                meta: industryLabel
+              });
+            }));
+
+            competitorsEl.innerHTML = "";
+            for (const el of cards) competitorsEl.appendChild(el);
+
+            setStatus("");
+          } else {
+            competitorBlock.style.display = "none";
+            setStatus("");
+          }
+        } else {
+          competitorBlock.style.display = "none";
+          setStatus("");
+        }
+
+      } catch (err) {
+        console.error(err);
+        setStatus("Er ging iets mis bij het ophalen van data. Probeer opnieuw.", true);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
