@@ -77,6 +77,11 @@
 
     .view{display:none}
     .view.active{display:block}
+    .srcbadge{font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:6px;
+      background:var(--line);color:var(--muted);vertical-align:middle;margin-left:6px}
+    .srcbadge.live{background:rgba(54,214,160,.18);color:var(--good)}
+    .srcbadge.ready{background:rgba(255,180,84,.18);color:var(--warn)}
+    .live-ok{color:var(--good)}
     .pending{color:var(--warn);font-weight:600}
     .booked{color:var(--muted)}
     .right{text-align:right}
@@ -123,7 +128,7 @@
         <div class="bankbar" style="background:var(--nordea)"></div>
       </div>
       <div class="card">
-        <h3>Danske Bank</h3>
+        <h3>Danske Bank <span class="srcbadge" id="danskeBadge">MOCK</span></h3>
         <div class="big sm" id="totDanske">—</div>
         <div class="bankbar" style="background:var(--danske)"></div>
       </div>
@@ -272,8 +277,32 @@
         published API schemas of each bank's developer portal and are <b>not</b> connected to live accounts.
       </p>
       <div class="api-note">
-        Settings persisted to localStorage. To connect live data, replace the mock loaders in
-        <code>BANKS.&lt;bank&gt;.fetchAccounts()</code> with authenticated calls to each developer-portal sandbox.
+        Settings persisted to localStorage. Nordea and SEB use mock data; Danske Bank can run live (below).
+      </div>
+    </div>
+
+    <div class="section-title"><h2>Danske Bank — live sandbox connection</h2>
+      <span class="srcbadge" id="danskeBadge2">MOCK</span></div>
+    <div class="card">
+      <div class="controls">
+        <label class="fld" style="min-width:280px">Proxy base URL
+          <input id="proxyUrl" placeholder="http://localhost:8787"/>
+        </label>
+        <button class="btn ghost" id="loadDanskeBtn">Load live data</button>
+        <button class="btn" id="connectDanskeBtn">Connect Danske (live)</button>
+      </div>
+      <div id="danskeStatus" class="small muted" style="margin-top:12px">Using mock data.</div>
+      <p class="small muted" style="margin-top:12px;line-height:1.6">
+        Live data flows through the Node proxy in <code>/server</code>, which performs the real
+        Berlin Group NextGenPSD2 OAuth2 + AIS flow (consent → SCA redirect → token → accounts).
+        Browser JS can't call the bank directly (client secret, eIDAS mTLS, no CORS), so the proxy
+        holds the credentials. Start it with <code>cd server &amp;&amp; npm i &amp;&amp; npm start</code> after
+        filling in <code>.env</code> from <code>.env.example</code> using your
+        <a href="https://developers.danskebank.com" target="_blank" rel="noopener">developer-portal</a> app.
+        <b>Connect</b> runs the one-time SCA authorization; <b>Load live data</b> fetches accounts once connected.
+      </p>
+      <div class="api-note">
+        Proxy routes: GET /api/danske/connect · /api/danske/callback · /api/danske/accounts · /api/danske/transactions
       </div>
     </div>
   </section>
@@ -357,9 +386,11 @@ const TX = {
 
 /* ========================= STATE ========================= */
 const state = {
-  houseBank: localStorage.getItem('mb_house') || 'nordea',
-  baseCcy:   localStorage.getItem('mb_base')  || 'EUR',
-  payments:  [],
+  houseBank:  localStorage.getItem('mb_house') || 'nordea',
+  baseCcy:    localStorage.getItem('mb_base')  || 'EUR',
+  payments:   [],
+  danskeProxy: localStorage.getItem('mb_proxy') || 'http://localhost:8787',
+  source:     { nordea:'mock', danske:'mock', seb:'mock' }, // mock | live
 };
 
 /* ========================= HELPERS ========================= */
@@ -497,6 +528,64 @@ function renderPayments(){
   });
 }
 
+/* ============== DANSKE BANK — LIVE SANDBOX INTEGRATION ==============
+   Talks to the Node proxy in /server (server/danske-proxy.js), which performs
+   the real Berlin Group NextGenPSD2 OAuth + AIS flow against Danske's sandbox.
+   Falls back silently to the bundled mock data if the proxy isn't reachable. */
+const proxy = () => state.danskeProxy.replace(/\/+$/,'');
+
+async function danskeStatus(){
+  try{
+    const r = await fetch(proxy()+'/api/danske/status');
+    if(!r.ok) return null;
+    return await r.json(); // { configured, connected, mtls }
+  }catch{ return null; }
+}
+
+function connectDanske(){
+  // Full-page redirect into the bank's SCA flow; proxy bounces back with ?danske=connected
+  window.location.href = proxy()+'/api/danske/connect';
+}
+
+async function loadDanskeLive(){
+  const setStatus = (msg,cls='') => { const el=$('#danskeStatus'); if(el){el.textContent=msg; el.className='small '+cls;} };
+  try{
+    const accRes = await fetch(proxy()+'/api/danske/accounts');
+    if(accRes.status===401){ setStatus('Proxy reachable but not connected — click “Connect Danske (live)”.','muted'); return false; }
+    if(!accRes.ok) throw new Error('accounts '+accRes.status);
+    const { accounts } = await accRes.json();
+    if(!Array.isArray(accounts) || !accounts.length){ setStatus('No accounts returned by sandbox.','muted'); return false; }
+
+    BANKS.danske.accounts = accounts;
+    state.source.danske = 'live';
+
+    // Pull transactions for each live account so the Transactions tab is live too.
+    await Promise.all(accounts.map(async a=>{
+      try{
+        const tr = await fetch(proxy()+'/api/danske/transactions?accountId='+encodeURIComponent(a.id));
+        if(tr.ok){ const { transactions } = await tr.json(); TX[a.id] = transactions || []; }
+      }catch{/* keep going */}
+    }));
+
+    populateAccountSelect($('#txAccount'));
+    populateAccountSelect($('#payFrom'));
+    renderAll();
+    setStatus('✓ Live data loaded from Danske Bank sandbox ('+accounts.length+' accounts).','live-ok');
+    return true;
+  }catch(err){
+    setStatus('Could not reach the Danske proxy — showing mock data. ('+err.message+')','muted');
+    return false;
+  }
+}
+
+async function refreshDanskeBadge(){
+  const st = await danskeStatus();
+  let txt='MOCK', cls='srcbadge';
+  if(state.source.danske==='live'){ txt='LIVE'; cls='srcbadge live'; }
+  else if(st && st.connected){ txt='READY'; cls='srcbadge ready'; }
+  ['#danskeBadge','#danskeBadge2'].forEach(sel=>{ const b=$(sel); if(b){b.textContent=txt; b.className=cls;} });
+}
+
 /* ========================= EVENTS ========================= */
 function setView(name){
   $$('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
@@ -511,6 +600,13 @@ $('#houseBank').addEventListener('change',e=>{
 $('#baseCcy').addEventListener('change',e=>{
   state.baseCcy=e.target.value; localStorage.setItem('mb_base',state.baseCcy); renderAll();
 });
+
+$('#proxyUrl').addEventListener('change',e=>{
+  state.danskeProxy=e.target.value.trim()||'http://localhost:8787';
+  localStorage.setItem('mb_proxy',state.danskeProxy);
+});
+$('#connectDanskeBtn').addEventListener('click',connectDanske);
+$('#loadDanskeBtn').addEventListener('click',async()=>{ await loadDanskeLive(); refreshDanskeBadge(); });
 
 $('#payBtn').addEventListener('click',()=>{
   const id=$('#payFrom').value;
@@ -543,11 +639,20 @@ function init(){
   $('#asof').textContent='As of '+new Date().toLocaleString('en-GB');
   $('#houseBank').value=state.houseBank;
   $('#baseCcy').value=state.baseCcy;
+  $('#proxyUrl').value=state.danskeProxy;
   populateAccountSelect($('#txAccount'));
   populateAccountSelect($('#payFrom'));
   // currency selector for payments
   const pc=$('#payCcy'); ['EUR','USD','GBP','SEK','DKK','NOK'].forEach(c=>{const o=document.createElement('option');o.textContent=c;pc.appendChild(o);});
   renderAll();
+
+  // If we just came back from the bank's SCA redirect, auto-load live data.
+  const params=new URLSearchParams(location.search);
+  if(params.get('danske')==='connected'){
+    loadDanskeLive().then(refreshDanskeBadge);
+    history.replaceState({},'',location.pathname);
+  }
+  refreshDanskeBadge();
 }
 init();
 </script>
