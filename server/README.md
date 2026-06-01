@@ -23,9 +23,31 @@ This proxy holds the credentials + certificate and runs the flow server-side.
 4. exchange the code at the `token` endpoint for an access token
 5. `GET /v1/accounts?withBalance=true` and `GET /v1/accounts/{id}/transactions`
 
-## Setup
+## Run a demo with no credentials
 
-1. Register a TPP app on <https://developers.danskebank.com> (Regulatory APIs → PSD2),
+Two options, neither needs a portal app, client secret or certificate:
+
+- **Dashboard only** — just open `dashboard.html` in a browser. All three banks
+  show bundled mock data; Danske shows the `MOCK` badge. Nothing else to run.
+
+- **Full live path in demo mode** — exercises the real integration code
+  (connect → token → accounts → Berlin Group normalization → `LIVE` badge) using
+  built-in sample data:
+
+  ```bash
+  cd server
+  npm install
+  DEMO_MODE=true npm start            # or set DEMO_MODE=true in .env
+  ```
+
+  Then serve the dashboard (e.g. `python3 -m http.server 5500` from the repo root),
+  open <http://localhost:5500/dashboard.html>, go to **Settings → Danske Bank**,
+  and click **Load live data** (or **Connect Danske (live)**). The Danske card
+  flips to `LIVE`. No bank call is made — `DEMO_MODE` serves the sample fixtures.
+
+## Setup (real sandbox)
+
+1. Set `DEMO_MODE=false`, then register a TPP app on <https://developers.danskebank.com> (Regulatory APIs → PSD2),
    note the client id/secret, set the redirect URI to `http://localhost:8787/api/danske/callback`,
    and download/confirm the sandbox host names + your eIDAS test certificate.
 2. Configure and run:

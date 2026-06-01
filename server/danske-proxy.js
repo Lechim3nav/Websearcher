@@ -45,12 +45,50 @@ const {
   DANSKE_TLS_CERT_PATH,
   DANSKE_TLS_KEY_PATH,
   PSU_IP_ADDRESS = '127.0.0.1',
+  DEMO_MODE,
 } = process.env;
 
-const isConfigured = Boolean(
+// Demo mode: serve Berlin-Group-shaped sample responses so the full integration
+// path (connect -> token -> accounts -> normalize -> dashboard) can be exercised
+// with NO portal registration, credentials or certificate.
+const demo = String(DEMO_MODE).toLowerCase() === 'true';
+
+const isConfigured = demo || Boolean(
   DANSKE_API_BASE && DANSKE_AUTH_URL && DANSKE_TOKEN_URL &&
   DANSKE_CLIENT_ID && DANSKE_CLIENT_SECRET && DANSKE_REDIRECT_URI
 );
+
+/* --- Demo fixtures: exactly the JSON the real AIS API returns --------------- */
+const DEMO_ACCOUNTS = {
+  accounts: [
+    { resourceId: 'DNB-1', name: 'Main current acc', iban: 'DK6230000011223344', currency: 'DKK',
+      cashAccountType: 'CACC', product: 'Current',
+      balances: [
+        { balanceType: 'closingBooked',    balanceAmount: { currency: 'DKK', amount: '882500.00' } },
+        { balanceType: 'interimAvailable', balanceAmount: { currency: 'DKK', amount: '880100.00' } } ] },
+    { resourceId: 'DNB-2', name: 'EUR collections', iban: 'DK6330000044556677', currency: 'EUR',
+      cashAccountType: 'CACC', product: 'Current',
+      balances: [
+        { balanceType: 'closingBooked',    balanceAmount: { currency: 'EUR', amount: '125000.00' } },
+        { balanceType: 'interimAvailable', balanceAmount: { currency: 'EUR', amount: '124300.00' } } ] },
+    { resourceId: 'DNB-3', name: 'SEK payments acc', iban: 'DK6430000077889900', currency: 'SEK',
+      cashAccountType: 'CACC', product: 'Current',
+      balances: [
+        { balanceType: 'closingBooked',    balanceAmount: { currency: 'SEK', amount: '2300000.00' } },
+        { balanceType: 'interimAvailable', balanceAmount: { currency: 'SEK', amount: '2295000.00' } } ] },
+  ],
+};
+const DEMO_TX = {
+  'DNB-1': { transactions: {
+    booked: [
+      { bookingDate: '2026-05-30', remittanceInformationUnstructured: 'Rent — office Copenhagen', endToEndId: 'LEASE-Q2', transactionAmount: { currency: 'DKK', amount: '-96000.00' } },
+      { bookingDate: '2026-05-26', remittanceInformationUnstructured: 'Incoming SEPA — Novo Nordisk', endToEndId: 'INV-9930', transactionAmount: { currency: 'DKK', amount: '330000.00' } } ],
+    pending: [] } },
+  'DNB-2': { transactions: { booked: [
+      { bookingDate: '2026-05-22', remittanceInformationUnstructured: 'EUR vendor payment', endToEndId: 'AP-5510', transactionAmount: { currency: 'EUR', amount: '-43250.00' } } ], pending: [] } },
+  'DNB-3': { transactions: { booked: [
+      { bookingDate: '2026-05-25', remittanceInformationUnstructured: 'SEK collection — IKEA', endToEndId: 'INV-9941', transactionAmount: { currency: 'SEK', amount: '480000.00' } } ], pending: [] } },
+};
 
 /* --- Optional mTLS (eIDAS QWAC) dispatcher --------------------------------- */
 let dispatcher; // undici Agent presenting the client certificate, if provided
@@ -206,7 +244,8 @@ function normalizeTx(t) {
 /* ============================== ROUTES ==================================== */
 const app = express();
 app.use((req, res, next) => {
-  res.set('Access-Control-Allow-Origin', DASHBOARD_ORIGIN);
+  // In demo mode allow any origin so the dashboard works from file:// or any port.
+  res.set('Access-Control-Allow-Origin', demo ? '*' : DASHBOARD_ORIGIN);
   res.set('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -215,13 +254,20 @@ app.use((req, res, next) => {
 app.get('/api/danske/status', (_req, res) => {
   res.json({
     configured: isConfigured,
-    connected: Boolean(session.accessToken && Date.now() < session.tokenExpiry),
+    connected: demo || Boolean(session.accessToken && Date.now() < session.tokenExpiry),
+    demo,
     mtls: Boolean(dispatcher),
   });
 });
 
 // Kick off the consent + SCA redirect.
 app.get('/api/danske/connect', async (_req, res) => {
+  if (demo) {  // skip real OAuth/SCA; pretend we're authorized and bounce back
+    session.accessToken = 'demo-token';
+    session.tokenExpiry = Date.now() + 3600e3;
+    session.consentId = 'demo-consent';
+    return res.redirect(`${DASHBOARD_ORIGIN}/dashboard.html?danske=connected`);
+  }
   if (!isConfigured) return res.status(503).json({ error: 'proxy not configured; see .env.example' });
   try {
     const consentId = await createConsent();
@@ -247,7 +293,7 @@ app.get('/api/danske/callback', async (req, res) => {
 // Normalized accounts + balances.
 app.get('/api/danske/accounts', async (_req, res) => {
   try {
-    const data = await aisGet('/accounts?withBalance=true');
+    const data = demo ? DEMO_ACCOUNTS : await aisGet('/accounts?withBalance=true');
     res.json({ accounts: (data.accounts || []).map(normalizeAccount) });
   } catch (err) {
     if (err.code === 'NOT_CONNECTED') return res.status(401).json({ error: 'not_connected' });
@@ -260,7 +306,9 @@ app.get('/api/danske/transactions', async (req, res) => {
   const { accountId } = req.query;
   if (!accountId) return res.status(400).json({ error: 'accountId required' });
   try {
-    const data = await aisGet(`/accounts/${encodeURIComponent(accountId)}/transactions?bookingStatus=both`);
+    const data = demo
+      ? (DEMO_TX[accountId] || { transactions: { booked: [], pending: [] } })
+      : await aisGet(`/accounts/${encodeURIComponent(accountId)}/transactions?bookingStatus=both`);
     const booked = data.transactions?.booked || [];
     const pending = (data.transactions?.pending || []).map((t) => ({ ...t, status: 'pending' }));
     res.json({ transactions: [...pending, ...booked].map(normalizeTx) });
@@ -272,6 +320,7 @@ app.get('/api/danske/transactions', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`[danske] proxy listening on http://localhost:${PORT}`);
-  console.log(`[danske] configured: ${isConfigured}  mTLS: ${Boolean(dispatcher)}`);
-  if (!isConfigured) console.log('[danske] running unconfigured — copy .env.example to .env and fill in portal credentials');
+  console.log(`[danske] configured: ${isConfigured}  demo: ${demo}  mTLS: ${Boolean(dispatcher)}`);
+  if (demo) console.log('[danske] DEMO MODE — serving Berlin-Group sample data, no credentials needed');
+  else if (!isConfigured) console.log('[danske] running unconfigured — copy .env.example to .env and fill in portal credentials');
 });
