@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Multi-Bank Treasury Dashboard — Nordea · Danske Bank · SEB</title>
+  <title>Multi-Bank Treasury Dashboard — Nordea · Danske Bank · SEB (mock data)</title>
   <style>
     :root{
       --bg:#0f1320; --panel:#171c2e; --panel2:#1d2236; --line:#2a3150;
@@ -38,9 +38,6 @@
     .card h3{margin:0 0 4px;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.6px}
     .big{font-size:26px;font-weight:700;margin-top:6px}
     .big.sm{font-size:20px}
-    .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
-    .pill.up{background:rgba(54,214,160,.15);color:var(--good)}
-    .pill.down{background:rgba(255,107,107,.15);color:var(--bad)}
     .bankbar{height:4px;border-radius:4px;margin-top:12px}
 
     .section-title{display:flex;align-items:center;justify-content:space-between;margin:24px 0 10px}
@@ -63,8 +60,6 @@
     input::placeholder{color:#65708f}
     button.btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}
     button.btn:hover{filter:brightness(1.08)}
-    button.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
-    button.btn.sm{padding:7px 11px;font-size:12.5px}
 
     .best{color:var(--good);font-weight:700}
     .worst{color:var(--bad)}
@@ -77,14 +72,8 @@
 
     .view{display:none}
     .view.active{display:block}
-    .srcbadge{font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:6px;
-      background:var(--line);color:var(--muted);vertical-align:middle;margin-left:6px}
-    .srcbadge.live{background:rgba(54,214,160,.18);color:var(--good)}
-    .srcbadge.ready{background:rgba(255,180,84,.18);color:var(--warn)}
-    .live-ok{color:var(--good)}
     .pending{color:var(--warn);font-weight:600}
     .booked{color:var(--muted)}
-    .right{text-align:right}
     .barwrap{background:var(--panel2);border-radius:6px;height:9px;overflow:hidden;margin-top:6px}
     .bar{height:100%;border-radius:6px}
     footer{margin-top:34px;color:var(--muted);font-size:12px;text-align:center;line-height:1.6}
@@ -99,7 +88,7 @@
       <div class="logo-dot"></div>
       <div>
         <h1>Multi-Bank Treasury Dashboard</h1>
-        <div class="sub">Consolidated view · Nordea · Danske Bank · SEB — <span class="tag">SANDBOX / MOCK DATA</span></div>
+        <div class="sub">Consolidated view · Nordea · Danske Bank · SEB — <span class="tag">DEVELOPER-PORTAL MOCK DATA</span></div>
       </div>
     </div>
     <div class="small muted" id="asof"></div>
@@ -128,7 +117,7 @@
         <div class="bankbar" style="background:var(--nordea)"></div>
       </div>
       <div class="card">
-        <h3>Danske Bank <span class="srcbadge" id="danskeBadge">MOCK</span></h3>
+        <h3>Danske Bank</h3>
         <div class="big sm" id="totDanske">—</div>
         <div class="bankbar" style="background:var(--danske)"></div>
       </div>
@@ -155,7 +144,7 @@
   <!-- ===================== ACCOUNTS ===================== -->
   <section class="view" id="view-accounts">
     <div class="section-title"><h2>Accounts across all banks</h2>
-      <span class="small muted">Booked & available balances as returned by each bank's Accounts API</span></div>
+      <span class="small muted">Booked &amp; available balances as returned by each bank's Accounts API</span></div>
     <div class="card">
       <table>
         <thead><tr>
@@ -165,7 +154,7 @@
         <tbody id="acctTable"></tbody>
       </table>
       <div class="api-note">
-        Nordea: GET /personal/v5/accounts &nbsp;·&nbsp; Danske Bank: GET /v1/accounts (Berlin Group NextGenPSD2) &nbsp;·&nbsp; SEB: GET /v1/accounts
+        Mock responses shaped to: Nordea GET /personal/v5/accounts · Danske Bank GET /v1/accounts (Berlin Group NextGenPSD2) · SEB GET /v1/accounts
       </div>
     </div>
   </section>
@@ -191,7 +180,7 @@
   <!-- ===================== PAYMENTS ===================== -->
   <section class="view" id="view-payments">
     <div class="section-title"><h2>Initiate a payment</h2>
-      <span class="small muted">Simulates each bank's Payment Initiation Service (PIS)</span></div>
+      <span class="small muted">Simulates each bank's Payment Initiation Service (PIS) — mock flow</span></div>
     <div class="card">
       <div class="controls">
         <label class="fld">From account
@@ -247,7 +236,7 @@
         <span><span class="swatch best" style="background:var(--good)"></span> best quote (most units per 1 base)</span>
         <span class="muted">Spread = difference between best and worst bank quote, in basis points</span>
       </div>
-      <div class="api-note">Nordea: GET /v5/markets/fx-rates · Danske Bank: GET /v1/rates/fx · SEB: GET /v1/fx/rates</div>
+      <div class="api-note">Mock rate feeds shaped to: Nordea GET /v5/markets/fx-rates · Danske Bank GET /v1/rates/fx · SEB GET /v1/fx/rates</div>
     </div>
   </section>
 
@@ -273,60 +262,39 @@
       <p class="small muted" style="margin-top:14px;line-height:1.6">
         The <b>house bank</b> determines which institution's FX rate feed is used to consolidate
         balances held in different currencies into a single reporting currency. Switching the house
-        bank re-prices the entire dashboard. All figures are sandbox / mock data modelled on the
-        published API schemas of each bank's developer portal and are <b>not</b> connected to live accounts.
+        bank re-prices the entire dashboard.
       </p>
       <div class="api-note">
-        Settings persisted to localStorage. Nordea and SEB use mock data; Danske Bank can run live (below).
-      </div>
-    </div>
-
-    <div class="section-title"><h2>Danske Bank — live sandbox connection</h2>
-      <span class="srcbadge" id="danskeBadge2">MOCK</span></div>
-    <div class="card">
-      <div class="controls">
-        <label class="fld" style="min-width:280px">Proxy base URL
-          <input id="proxyUrl" placeholder="http://localhost:8787"/>
-        </label>
-        <button class="btn ghost" id="loadDanskeBtn">Load live data</button>
-        <button class="btn" id="connectDanskeBtn">Connect Danske (live)</button>
-      </div>
-      <div id="danskeStatus" class="small muted" style="margin-top:12px">Using mock data.</div>
-      <p class="small muted" style="margin-top:12px;line-height:1.6">
-        Live data flows through the Node proxy in <code>/server</code>, which performs the real
-        Berlin Group NextGenPSD2 OAuth2 + AIS flow (consent → SCA redirect → token → accounts).
-        Browser JS can't call the bank directly (client secret, eIDAS mTLS, no CORS), so the proxy
-        holds the credentials. Start it with <code>cd server &amp;&amp; npm i &amp;&amp; npm start</code> after
-        filling in <code>.env</code> from <code>.env.example</code> using your
-        <a href="https://developers.danskebank.com" target="_blank" rel="noopener">developer-portal</a> app.
-        <b>Connect</b> runs the one-time SCA authorization; <b>Load live data</b> fetches accounts once connected.
-      </p>
-      <div class="api-note">
-        Proxy routes: GET /api/danske/connect · /api/danske/callback · /api/danske/accounts · /api/danske/transactions
+        Settings persisted to localStorage. All figures are <b>mock data</b> modelled on the published
+        API schemas from the Nordea, Danske Bank and SEB developer portals — not connected to live accounts.
       </div>
     </div>
   </section>
 
   <footer>
-    Demo treasury dashboard · mock data structured to Nordea Open Banking v5, Danske Bank &amp; SEB (Berlin Group NextGenPSD2).<br/>
+    Demo treasury dashboard · mock data modelled on Nordea Open Banking v5, Danske Bank &amp; SEB (Berlin Group NextGenPSD2) developer portals.<br/>
     Not affiliated with any bank. For development &amp; testing only.
   </footer>
 </div>
 
 <script>
 /* =========================================================================
-   MOCK DATA — shaped to each bank's developer-portal API responses.
-   Replace the fetch* stubs with real authenticated sandbox calls to go live.
+   MULTI-BANK DASHBOARD — mock data flows only.
+   Every dataset below is shaped to the corresponding bank developer-portal
+   API response, so the rendering code is identical to what a live integration
+   would feed. No network calls are made.
    ========================================================================= */
 
-// FX rates expressed as "value of 1 unit of currency in EUR".
-// Each bank quotes slightly differently so they can be compared.
+/* ---- FX rate feeds (mock) ----
+   Stored as "value of 1 unit of currency in EUR". Each bank quotes slightly
+   differently, mirroring how the three portals return their own rate tables. */
 const FX_TO_EUR = {
   nordea: { EUR:1, USD:0.9210, GBP:1.1720, SEK:0.08760, DKK:0.13405, NOK:0.08640 },
   danske: { EUR:1, USD:0.9195, GBP:1.1735, SEK:0.08745, DKK:0.13412, NOK:0.08628 },
   seb:    { EUR:1, USD:0.9224, GBP:1.1709, SEK:0.08772, DKK:0.13399, NOK:0.08655 },
 };
 
+/* ---- Accounts (mock) ---- shaped to each portal's Accounts API ---- */
 const BANKS = {
   nordea: {
     name:"Nordea", color:"var(--nordea)",
@@ -360,7 +328,7 @@ const BANKS = {
   },
 };
 
-// Mock transactions per account id.
+/* ---- Transactions (mock) ---- per account id ---- */
 const TX = {
   "NDEA-1":[
     {date:"2026-05-29",desc:"Salary run May",ref:"PAYROLL-05",status:"booked",amount:-845200.00},
@@ -386,11 +354,9 @@ const TX = {
 
 /* ========================= STATE ========================= */
 const state = {
-  houseBank:  localStorage.getItem('mb_house') || 'nordea',
-  baseCcy:    localStorage.getItem('mb_base')  || 'EUR',
-  payments:   [],
-  danskeProxy: localStorage.getItem('mb_proxy') || 'http://localhost:8787',
-  source:     { nordea:'mock', danske:'mock', seb:'mock' }, // mock | live
+  houseBank: localStorage.getItem('mb_house') || 'nordea',
+  baseCcy:   localStorage.getItem('mb_base')  || 'EUR',
+  payments:  [],
 };
 
 /* ========================= HELPERS ========================= */
@@ -402,7 +368,6 @@ const allAccounts = () => Object.entries(BANKS).flatMap(([bk,b]) =>
 function fmt(n, ccy){
   return new Intl.NumberFormat('en-GB',{style:'currency',currency:ccy,maximumFractionDigits:2}).format(n);
 }
-function num(n){ return new Intl.NumberFormat('en-GB',{maximumFractionDigits:2}).format(n); }
 
 // Convert an amount in `ccy` into the base currency using the house bank's feed.
 function toBase(amount, ccy){
@@ -426,7 +391,6 @@ function renderOverview(){
   $('#totSeb').textContent    = fmt(perBank.seb, base);
   $('#hbLabel').textContent   = BANKS[state.houseBank].name;
 
-  // distribution bars
   const dist = $('#distCard'); dist.innerHTML='';
   Object.entries(perBank).forEach(([bk,v])=>{
     const pct = grand>0 ? (v/grand*100) : 0;
@@ -438,7 +402,6 @@ function renderOverview(){
     dist.appendChild(row);
   });
 
-  // holdings by currency
   const byCcy={};
   allAccounts().forEach(a=>{ byCcy[a.ccy]=byCcy[a.ccy]||{orig:0,base:0}; byCcy[a.ccy].orig+=a.booked; byCcy[a.ccy].base+=toBase(a.booked,a.ccy); });
   const tb=$('#ccyTable'); tb.innerHTML='';
@@ -491,14 +454,13 @@ function renderTransactions(){
         <td class="${t.status==='pending'?'pending':'booked'}">${t.status}</td>
         <td class="num" style="color:${col}">${sign}${fmt(t.amount,acc.ccy)}</td></tr>`);
   });
-  $('#txApiNote').textContent = BANKS[acc.bank].txApi;
+  $('#txApiNote').textContent = 'Mock · '+BANKS[acc.bank].txApi;
 }
 
 function renderFx(){
   const pairs=[['EUR','USD'],['EUR','GBP'],['EUR','SEK'],['EUR','DKK'],['EUR','NOK']];
   const tb=$('#fxTable'); tb.innerHTML='';
   pairs.forEach(([b,q])=>{
-    // 1 base unit = X quote units => (value of 1 base in EUR) / (value of 1 quote in EUR)
     const quote = bank => FX_TO_EUR[bank][b] / FX_TO_EUR[bank][q];
     const r={nordea:quote('nordea'),danske:quote('danske'),seb:quote('seb')};
     const vals=Object.values(r);
@@ -528,64 +490,6 @@ function renderPayments(){
   });
 }
 
-/* ============== DANSKE BANK — LIVE SANDBOX INTEGRATION ==============
-   Talks to the Node proxy in /server (server/danske-proxy.js), which performs
-   the real Berlin Group NextGenPSD2 OAuth + AIS flow against Danske's sandbox.
-   Falls back silently to the bundled mock data if the proxy isn't reachable. */
-const proxy = () => state.danskeProxy.replace(/\/+$/,'');
-
-async function danskeStatus(){
-  try{
-    const r = await fetch(proxy()+'/api/danske/status');
-    if(!r.ok) return null;
-    return await r.json(); // { configured, connected, mtls }
-  }catch{ return null; }
-}
-
-function connectDanske(){
-  // Full-page redirect into the bank's SCA flow; proxy bounces back with ?danske=connected
-  window.location.href = proxy()+'/api/danske/connect';
-}
-
-async function loadDanskeLive(){
-  const setStatus = (msg,cls='') => { const el=$('#danskeStatus'); if(el){el.textContent=msg; el.className='small '+cls;} };
-  try{
-    const accRes = await fetch(proxy()+'/api/danske/accounts');
-    if(accRes.status===401){ setStatus('Proxy reachable but not connected — click “Connect Danske (live)”.','muted'); return false; }
-    if(!accRes.ok) throw new Error('accounts '+accRes.status);
-    const { accounts } = await accRes.json();
-    if(!Array.isArray(accounts) || !accounts.length){ setStatus('No accounts returned by sandbox.','muted'); return false; }
-
-    BANKS.danske.accounts = accounts;
-    state.source.danske = 'live';
-
-    // Pull transactions for each live account so the Transactions tab is live too.
-    await Promise.all(accounts.map(async a=>{
-      try{
-        const tr = await fetch(proxy()+'/api/danske/transactions?accountId='+encodeURIComponent(a.id));
-        if(tr.ok){ const { transactions } = await tr.json(); TX[a.id] = transactions || []; }
-      }catch{/* keep going */}
-    }));
-
-    populateAccountSelect($('#txAccount'));
-    populateAccountSelect($('#payFrom'));
-    renderAll();
-    setStatus('✓ Live data loaded from Danske Bank sandbox ('+accounts.length+' accounts).','live-ok');
-    return true;
-  }catch(err){
-    setStatus('Could not reach the Danske proxy — showing mock data. ('+err.message+')','muted');
-    return false;
-  }
-}
-
-async function refreshDanskeBadge(){
-  const st = await danskeStatus();
-  let txt='MOCK', cls='srcbadge';
-  if(state.source.danske==='live'){ txt='LIVE'; cls='srcbadge live'; }
-  else if(st && st.connected){ txt='READY'; cls='srcbadge ready'; }
-  ['#danskeBadge','#danskeBadge2'].forEach(sel=>{ const b=$(sel); if(b){b.textContent=txt; b.className=cls;} });
-}
-
 /* ========================= EVENTS ========================= */
 function setView(name){
   $$('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
@@ -601,13 +505,6 @@ $('#baseCcy').addEventListener('change',e=>{
   state.baseCcy=e.target.value; localStorage.setItem('mb_base',state.baseCcy); renderAll();
 });
 
-$('#proxyUrl').addEventListener('change',e=>{
-  state.danskeProxy=e.target.value.trim()||'http://localhost:8787';
-  localStorage.setItem('mb_proxy',state.danskeProxy);
-});
-$('#connectDanskeBtn').addEventListener('click',connectDanske);
-$('#loadDanskeBtn').addEventListener('click',async()=>{ await loadDanskeLive(); refreshDanskeBadge(); });
-
 $('#payBtn').addEventListener('click',()=>{
   const id=$('#payFrom').value;
   const acc=allAccounts().find(a=>a.id===id);
@@ -619,14 +516,13 @@ $('#payBtn').addEventListener('click',()=>{
     name:$('#payName').value,iban:$('#payIban').value,amount,ccy,
     ref:$('#payRef').value,status:'PENDING (RCVD)'};
   state.payments.push(p);
-  // simulate async acceptance like the PIS status callback
   setTimeout(()=>{ p.status='ACCP (Accepted)'; renderPayments(); },1500);
   renderPayments();
   const ok=$('#payOk');
   ok.style.display='block';
   ok.innerHTML=`✓ Payment <b>${pid}</b> submitted to ${acc.bankName} — ${fmt(amount,ccy)} to ${p.name||'beneficiary'}.
-    Initiation accepted, awaiting settlement.`;
-  $('#payApiNote').textContent = BANKS[acc.bank].payApi;
+    Initiation accepted, awaiting settlement. <span class="muted">(mock flow)</span>`;
+  $('#payApiNote').textContent = 'Mock · '+BANKS[acc.bank].payApi;
   ['payAmount','payName','payIban','payRef'].forEach(f=>$('#'+f).value='');
 });
 
@@ -639,20 +535,10 @@ function init(){
   $('#asof').textContent='As of '+new Date().toLocaleString('en-GB');
   $('#houseBank').value=state.houseBank;
   $('#baseCcy').value=state.baseCcy;
-  $('#proxyUrl').value=state.danskeProxy;
   populateAccountSelect($('#txAccount'));
   populateAccountSelect($('#payFrom'));
-  // currency selector for payments
   const pc=$('#payCcy'); ['EUR','USD','GBP','SEK','DKK','NOK'].forEach(c=>{const o=document.createElement('option');o.textContent=c;pc.appendChild(o);});
   renderAll();
-
-  // If we just came back from the bank's SCA redirect, auto-load live data.
-  const params=new URLSearchParams(location.search);
-  if(params.get('danske')==='connected'){
-    loadDanskeLive().then(refreshDanskeBadge);
-    history.replaceState({},'',location.pathname);
-  }
-  refreshDanskeBadge();
 }
 init();
 </script>
